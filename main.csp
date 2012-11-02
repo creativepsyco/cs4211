@@ -1,0 +1,23 @@
+﻿#define NumSubs 		3
+#define NumLocs 		3
+#define Nocall			-1
+#define	Emptysock		-1
+
+var callPartner[-1(NumSubs)];		//-1 represents no call partner
+var outgoingSock[-1(NumSubs)];		//-1 represents not outgoing calls
+var listeningSock[-1(NumSubs)];		//-1 represents no one calling
+var phone[0(numSubs)];				//0 represents phone is not busy
+
+System() = start -> Subscribers_init();
+
+Subscriber_init() =  (||subId.{0.NumSubs - 1}@(IdleSub(subId))
+
+IdleSub(id) = idle.id{callPartner[id] = Nocall; outgoingSock[id] = Emptysock; listeningSock[id] = EmptySock; phone[id] = 0} ->
+			(
+				[outgoingSock[id] == Emptysock;] calling.id{phone[id] = 1) -> Calling(id)
+				[]	[listeningSock[id] > Emptysock;] answerIncoming.id{outgoingSock[id] = listeningSock[id]; phone[id] = 1} -> Answer(id)
+			);
+			
+Calling(id);
+
+Answer(id);
