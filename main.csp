@@ -1,5 +1,5 @@
-﻿#define NumSubs 		3
-#define NumLocs 		3
+﻿#define NumSubs 3
+#define NumLocs 3
 #define Nocall			-1
 #define	Emptysock		-1
 

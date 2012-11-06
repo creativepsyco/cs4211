@@ -1,0 +1,55 @@
+﻿#import "PAT.Lib.Example";
+#define numSubs 2;
+
+enum {connecting, engaged, ringing, speech};
+
+var callTo = [-1(numSubs)]; // number[i] = k means k is the i of the guy being called
+var callFrom = [-1(numSubs)];
+var status = [-1(numSubs)];
+
+// Channel From Exchange
+channel callOK 0;
+channel clearOK 0;
+channel answerOK 0;
+// Channel To Exchange 
+channel callChannel 1;
+channel answerChannel 1;
+channel clearChannel 1;
+// Internal Channels
+channel connectChannel 0;
+
+// Unused
+var shit;
+////
+
+// Functions
+Call(x,y) = callConnecting {
+ callTo[x] = y;
+ status[x] = connecting;
+} -> Exchange();
+
+//////////////////////////// SUBSCRIBER /////////////////////////
+OnHook(i) = [callTo[i] != -1] callChannel!i -> callOK!i	-> OffHook(i)[]
+			[callFrom[i]!= -1] answerChannel!i -> answerOK!i -> OffHook(i)[]
+			OnHook(i);
+OffHook(i) = clearChannel!i -> clearOK!i -> OnHook(i);
+
+// Sub
+Subscriber() = ||id:{0..numSubs-1}@(OnHook(id));
+
+//exchange
+Exchange() = callChannel?x.y ->  calling.x.y -> 
+			([x==y] callingSelf{shit = 1} -> Stop
+			[]
+			ackCall{shit = 2} -> callOK!x -> Call(x,y)
+			);
+
+System() = Subscriber() || Exchange();
+CallSelf() = callChannel!0.1 -> callOK?0 -> clearChannel!0 -> clearOK!0 -> Stop;
+
+Pee() = Exchange() || CallSelf();
+
+#assert Pee() nonterminating;
+#assert Subscriber() nonterminating;
+#assert Exchange() |= [] (calling.0.0 -> callingSelf);
+#assert Exchange() |= [] (calling.0.1 -> ackCall);
