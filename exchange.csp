@@ -1,0 +1,6 @@
+﻿#define numSubs 2;
+
+enum {connecting, engaged, ringing, speech};
+
+// Channels to Exchange
+channel callChannel[numSubs] 1;

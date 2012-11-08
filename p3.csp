@@ -1,11 +1,13 @@
-﻿#import "PAT.Lib.Example";
-#define numSubs 2;
+﻿#define numSubs 2;
 
 enum {connecting, engaged, ringing, speech};
+
+enum {IDLE, CALLING, RECIEVING};
 
 var callTo = [-1(numSubs)]; // number[i] = k means k is the i of the guy being called
 var callFrom = [-1(numSubs)];
 var status = [-1(numSubs)];
+var subStatus = [IDLE(numSubs)];
 
 // Channel From Exchange
 channel callOK 0;
@@ -17,6 +19,8 @@ channel answerChannel 1;
 channel clearChannel 1;
 // Internal Channels
 channel connectChannel 0;
+// call subscriber channel
+channel callSubChannel[numSubs] 1;
 
 // Unused
 var shit;
@@ -29,20 +33,37 @@ Call(x,y) = callConnecting {
 } -> Exchange();
 
 //////////////////////////// SUBSCRIBER /////////////////////////
-OnHook(i) =  callChannel!i -> callOK!i	-> OffHook(i)[]
-			 answerChannel!i -> answerOK!i -> OffHook(i);
+OnHook(i) =  callSubChannel[i]?j -> callOK.i	-> OffHook(i)[]
+			 answerChannel!i -> answerOK.i -> OffHook(i);
 			
-OffHook(i) = clearChannel!i -> clearOK!i -> OnHook(i);
+OffHook(i) = clearChannel!i -> clearOK.i -> OnHook(i);
+
+IdleSub(id) = idle.id{ subStatus[id] = IDLE; } -> (
+						[callTo[id] != -1] makingCall.id{ subStatus[id] = CALLING; } -> Calling(id)
+						[]
+						[callFrom[id] != -1] answerCall.id{ subStatus[id] = RECIEVING; } -> Answering(id)
+						[]
+						IdleSub(id)
+);
+
+Calling(id) = Calling(id);
+Answering(id) = Answering(id);
+
+Exchange() = 
 
 // Sub
-Subscriber() = ||id:{0..numSubs-1}@(OnHook(id));
+Subscriber() = ||id:{0..numSubs-1}@(IdleSub(id));
+
 
 //exchange
-Exchange() = callChannel?x.y ->  calling.x.y -> 
-			([x==y] callingSelf{shit = 1} -> Stop
-			[]
-			ackCall{shit = 2} -> callOK!x -> Call(x,y)
-			);
+//Exchange() = callChannel?x.y ->  calling.x.y -> 
+//			([x==y] callingSelf{shit = 1} -> Stop
+//			[]
+//			ackCall{shit = 2} -> callOK!x -> Call(x,y)
+//			);
+//Exchange2() = 
+
+//Exchange() = callChannel?x.y -> calling.x.y -> callSubChannel[x]!y -> callOK.x -> 
 
 System() = Subscriber() || Exchange();
 CallSelf() = callChannel!0.1 -> callOK?0 -> clearChannel!0 -> clearOK!0 -> Stop;
