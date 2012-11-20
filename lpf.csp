@@ -1,0 +1,31 @@
+﻿#define numSubs			3;
+#define emptySock		-1;
+
+var outgoingSock 	= [emptySock(numSubs)];
+var incomingSock 	= [emptySock(numSubs)];
+var state 			= [0(numSubs)];
+
+channel toExchange 		1;
+channel fromExchange 	1;
+
+Subscribers() = (||subId:{0..numSubs-1}@Subscriber(subId));
+
+Subscriber(subId) = [state[subId] == 0]	idling.subId -> (Dialing(subId) [] Subscriber(subId))
+					[] [state[subId] == 1] calling.subId -> Subscriber(subId)
+					[] [state[subId] == 2] answering.subId -> Subscriber(subId);
+		
+Dialing(subId) = ([]targetId:{0..numSubs-1}@Calling(subId, targetId));
+
+Calling(subId, targetId) = toExchange!subId.targetId{state[subId]=1;outgoingSock[subId]=targetId;} -> fromExchange?connected -> 
+						(
+							[connected==0]connecctionEst.subId{incomingSock[targetId]=subId;state[targetId]=2;} -> Subscriber(subId)
+							[]lineBusy.subId{state[subId]=0;outgoingSock[subId]=emptySock} -> Subscriber(subId)
+						);
+
+Exchange() = toExchange?from.to -> 
+			(
+				[state[to]==0]fromExchange!0 -> Exchange()
+				[][state[to]==1]fromExchange!1 -> Exchange()
+			);
+
+System() = Exchange() || Subscribers();
