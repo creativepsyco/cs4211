@@ -5,8 +5,9 @@ var outgoingSock 	= [emptySock(numSubs)];
 var incomingSock 	= [emptySock(numSubs)];
 var state 			= [0(numSubs)];
 
-channel toExchange 		1;
-channel fromExchange 	1;
+channel toExchange 			0;
+channel fromExchange 		0;
+channel hangUpToExchange 	0;
 
 Subscribers() = (||subId:{0..numSubs-1}@Subscriber(subId));
 
@@ -16,16 +17,24 @@ Subscriber(subId) = [state[subId] == 0]	idling.subId -> (Dialing(subId) [] Subsc
 		
 Dialing(subId) = ([]targetId:{0..numSubs-1}@Calling(subId, targetId));
 
-Calling(subId, targetId) = toExchange!subId.targetId{state[subId]=1;outgoingSock[subId]=targetId;} -> fromExchange?connected -> 
+Calling(subId, targetId) = connecting.subId.targetId -> toExchange!subId.targetId{state[subId]=1;outgoingSock[subId]=targetId;} -> fromExchange?connected -> 
 						(
-							[connected==0]connecctionEst.subId{incomingSock[targetId]=subId;state[targetId]=2;} -> Subscriber(subId)
-							[]lineBusy.subId{state[subId]=0;outgoingSock[subId]=emptySock} -> Subscriber(subId)
+							[connected==0]connectionEst.subId{incomingSock[targetId]=subId;state[targetId]=2;} -> connectionSucceeded.subId.targetId -> Subscriber(subId)
+							[]lineBusy.subId{state[subId]=0;outgoingSock[subId]=emptySock} -> connectionFail.subId.targetId -> Subscriber(subId)
 						);
 
-Exchange() = toExchange?from.to -> 
+Exchange() = ExchangeCalling() || ExchangeHangUp();
+
+ExchangeCalling() = toExchange?from.to -> 
 			(
-				[state[to]==0]fromExchange!0 -> Exchange()
-				[][state[to]==1]fromExchange!1 -> Exchange()
+				[state[to]==0]fromExchange!0 -> ExchangeCalling()
+				[][state[to]==1]fromExchange!1 -> ExchangeCalling()
 			);
 
+ExchangeHangUp() = hangUpToExchange?from.to -> ExchangeHangUp();
+
 System() = Exchange() || Subscribers();
+
+#assert System() deadlockfree;
+
+#assert System() |= connecting.0.0 -> connectionFail.0.0;
