@@ -3,6 +3,15 @@
 
 var outgoingSock 	= [emptySock(numSubs)];
 var incomingSock 	= [emptySock(numSubs)];
+
+/*********************************
+State values
+0 : Idling
+1 : Calling
+2 : Answering
+3 : Calling Stalled
+4 : Answering Stalled
+*********************************/
 var state 			= [0(numSubs)];
 
 channel toExchange 			0;
@@ -23,7 +32,7 @@ Calling(subId, targetId) = connecting.subId.targetId -> toExchange!subId.targetI
 							[]lineBusy.subId{state[subId]=0;outgoingSock[subId]=emptySock} -> connectionFail.subId.targetId -> Subscriber(subId)
 						);
 
-Exchange() = ExchangeCalling() || ExchangeHangUp();
+Exchange() = ExchangeCalling() || ExchangeHangUp() || ExchangeResume();
 
 ExchangeCalling() = toExchange?from.to -> 
 			(
@@ -33,6 +42,7 @@ ExchangeCalling() = toExchange?from.to ->
 
 ExchangeHangUp() = hangUpToExchange?from.to -> ExchangeHangUp();
 
+ExchangeResume() = resumeToExchange?from.to -> ExchangeResume();
 System() = Exchange() || Subscribers();
 
 #assert System() deadlockfree;
