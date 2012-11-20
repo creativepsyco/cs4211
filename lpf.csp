@@ -37,4 +37,5 @@ System() = Exchange() || Subscribers();
 
 #assert System() deadlockfree;
 
+//Checks that people are not able to self call.
 #assert System() |= connecting.0.0 -> connectionFail.0.0;
