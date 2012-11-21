@@ -1,6 +1,12 @@
-﻿#define numSubs			3;
+﻿/*********************************
+Constants
+*********************************/
+#define numSubs			2;
 #define emptySock		-1;
 
+/*********************************
+Outgoing and Incoming Sockets for each subscriber
+*********************************/
 var outgoingSock 	= [emptySock(numSubs)];
 var incomingSock 	= [emptySock(numSubs)];
 
@@ -14,9 +20,13 @@ State values
 *********************************/
 var state 			= [0(numSubs)];
 
+/*********************************
+The channels for communicating with the exchange
+*********************************/
 channel toExchange 			0;
 channel fromExchange 		0;
 channel hangUpToExchange 	0;
+channel hangUpFromExchange	0;
 channel resumeToExchange	0;
 channel stallToExchange		0;
 
@@ -24,7 +34,7 @@ Subscribers() = (||subId:{0..numSubs-1}@Subscriber(subId));
 
 Subscriber(subId) = [state[subId] == 0]	idling.subId -> (Dialing(subId) [] Subscriber(subId))
 					[] [state[subId] == 1] calling.subId -> (HangUp(subId) [] Subscriber(subId))
-					[] [state[subId] == 2] answering.subId -> (Stall(subId) [] Subscriber(subId))
+					[] [state[subId] == 2] answering.subId -> (Subscriber(subId))
 					[] [state[subId] == 3] callStall.subId -> (HangUp(subId) [] Subscriber(subId))
 					[] [state[subId] == 4] ansStall.subId -> (Resume(subId) [] Subscriber(subId));
 		
@@ -32,11 +42,16 @@ Dialing(subId) = ([]targetId:{0..numSubs-1}@Calling(subId, targetId));
 
 Calling(subId, targetId) = connecting.subId.targetId -> toExchange!subId.targetId{state[subId]=1;outgoingSock[subId]=targetId;} -> fromExchange?connected -> 
 						(
-							[connected==0]connectionEst.subId{incomingSock[targetId]=subId;state[targetId]=2;} -> connectionSucceeded.subId.targetId -> Subscriber(subId)
-							[]lineBusy.subId{state[subId]=0;outgoingSock[subId]=emptySock} -> connectionFail.subId.targetId -> Subscriber(subId)
+							[connected==0] connectionSucceeded.subId.targetId -> Subscriber(subId)
+							[][connected==1&&incomingSock[subId]==emptySock]lineBusy.subId{state[subId]=0;outgoingSock[subId]=emptySock} -> connectionFail.subId.targetId -> Subscriber(subId)
+							[][connected==1&&incomingSock[subId]!=emptySock]inCall.subId{state[subId]=2;outgoingSock[subId]=emptySock} -> Subscriber(subId)
 						);
 
-HangUp(subId) = hangUp.subId -> Subscriber(subId);
+HangUp(subId) = hangUp.subId -> hangUpToExchange!subId -> hangUpFromExchange?hungedUp ->
+				(
+					[hungedUp==0] disconnected.subId.outgoingSock[subId]{state[subId]=0;outgoingSock[subId]=emptySock;} -> Subscriber(subId)
+					[][hungedUp!=0] Subscriber(subId)
+				);
 
 Stall(subId) = stall.subId -> Subscriber(subId);
 
@@ -46,12 +61,16 @@ Exchange() = ExchangeCalling() || ExchangeHangUp() || ExchangeStall() || Exchang
 
 ExchangeCalling() = toExchange?from.to -> 
 			(	
-				[from == to] fromExchange!1 -> ExchangeCalling()
-				[][state[to]==0]fromExchange!0{state[to]=2} -> ExchangeCalling()
+				[from==to] fromExchange!1 -> ExchangeCalling()
+				[][state[to]==0]fromExchange!0{state[to]=2;incomingSock[to]=from} -> ExchangeCalling()
 				[][state[to]==1]fromExchange!1 -> ExchangeCalling()
 			);
 
-ExchangeHangUp() = hangUpToExchange?from.to -> ExchangeHangUp();
+ExchangeHangUp() = hangUpToExchange?from ->
+			(
+				[incomingSock[outgoingSock[from]]==from] hangingUp.from{state[outgoingSock[from]]=0;incomingSock[outgoingSock[from]]=emptySock} -> hangUpFromExchange!0 -> ExchangeHangUp()
+				[][incomingSock[outgoingSock[from]]!=from] hangUpFromExchange!1 -> ExchangeHangUp()
+			);
 
 ExchangeStall() = stallToExchange?from.to -> ExchangeStall();
 
