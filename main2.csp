@@ -6,8 +6,8 @@
 
 // Subscriber statuses
 // First column: -1 if currently not in call. Else 0..NumSubs-1 to show if in call, and with who.
+// Second collumn - 
 var subStatus = [-1(NoSubs)]; 
-var connections = [NoSubs/2];
 
 // todo: when to update status, while making the call?
 
@@ -15,17 +15,20 @@ var connections = [NoSubs/2];
 // Status = -1 if idle, 0 if receiving call, 1 if making call
 Subscriber(i, status) = 
 	// if idle and not in a call continue idling
-	[status == IDLE && subStatus[i] == -1]continue_idling.i.status -> Subscriber(i, status)
+	[status == IDLE && subStatus[i] == -1]continue_idling.i.status -> Exchange(i, status)
 	// if idle, make a call
-	[] [status == IDLE  && subStatus[i] == -1]x:{0..NoSubs-1} @ (Make_call(i, x) -> Subscriber(i, status))
-	//if idle, receive a call
-	// if in call, and is receiptient, then suspend
+	[] [status == IDLE  && subStatus[i] == -1]x:{0..NoSubs-1} @ (Make_call(i, x) -> Exchange(i, status))
+	//if idle, but call has been made to you, receive a call
+	[] [status == IDLE && subStatus[i] != -1 && ] //connecting status
+	// if in call, and is receipient, then suspend
 	[] [status == CONNECTED && subStatus[i] != -1]suspend.i.status{ subStatus[i]  = SUSPEND; connections }
 	// if in call, 
 	; 
 	}
 	
 }
+
+// Exchange(i, status) =
 
 Make_call(i, j) = (if subStauts[i] == IDLE) {
 	sendBusyTone.I
