@@ -85,49 +85,119 @@ Calling(subId, targetId) = connecting.subId.targetId -> toExchange!subId.targetI
 							[][connected==1&&incomingSock[subId]!=emptySock]inCall.subId{state[subId]=2;outgoingSock[subId]=emptySock} -> Subscriber(subId)
 						);
 
+/******************************************************************
+Hangup function
+Used to model the caller hanging up
+Resets all user properties to origin
+******************************************************************/
 HangUp(subId) =  hangUpToExchange!subId -> hangUp.subId{state[subId]=0;outgoingSock[subId]=emptySock;} -> Subscriber(subId);
 
+/******************************************************************
+Stall function
+Use to model the callee stalling the phone call by putting down 
+the phone
+Changes callee state to match that of Answering Stall, and lets 
+the exchange handle the state for the caller
+******************************************************************/
 Stall(subId) = stall.subId -> stallToExchange!subId{state[subId]=4;} -> Subscriber(subId);
 
+/******************************************************************
+Resume function
+Use to model the callee resuming a phone call after stalling it
+Changes the callee state to match that of Answering Call, and lets
+the exchange handle the state of the caller
+******************************************************************/
 Resume(subId) = resume.subId -> resumeToExchange!subId{state[subId]=2} -> Subscriber(subId);
 
+/******************************************************************
+Exchange function
+Starts the main Exchange function, which is made up of 4 Exchange 
+processes
+******************************************************************/
 Exchange() = ExchangeCalling() || ExchangeHangUp() || ExchangeStall() || ExchangeResume();
 
+/******************************************************************
+ExchangeCalling function
+Used to model the caller informing the Exchange that it wants to 
+call a number
+If the callee is free, it will patch the call through and handle
+the states for the callee
+******************************************************************/
 ExchangeCalling() = toExchange?from.to -> 
 			(	
 				[from==to || state[to]!=0] fromExchange!1 -> ExchangeCalling()
 				[][state[to]==0]fromExchange!0{state[to]=2;incomingSock[to]=from} -> ExchangeCalling()
 			);
 
+/******************************************************************
+ExchangeHangUp function
+Used to model the caller informing the Exchange that it wants to 
+hang up a call
+If will handle the states for the callee and hang up the call
+******************************************************************/
 ExchangeHangUp() = hangUpToExchange?from ->
 			(
 				[outgoingSock[from]!=emptySock&&incomingSock[outgoingSock[from]]==from] hangingUp.from{state[outgoingSock[from]]=0;incomingSock[outgoingSock[from]]=emptySock} -> ExchangeHangUp()
 				[][!(outgoingSock[from]!=emptySock&&incomingSock[outgoingSock[from]]==from)] Error()
 			);
 
+/******************************************************************
+ExchangeStall function
+Used to model the callee informing the Exchange that it wants to 
+stall a call
+If will handle the states for the caller and stall the call
+******************************************************************/
 ExchangeStall() = stallToExchange?from ->
 			(
 				[incomingSock[from]!=emptySock&&outgoingSock[incomingSock[from]]==from] stall.from{state[incomingSock[from]]=3} -> ExchangeStall()
 				[][!(incomingSock[from]!=emptySock&&outgoingSock[incomingSock[from]]==from)] Error()
 			);
 
+/******************************************************************
+ExchangeResume function
+Used to model the callee informing the Exchange that it wants to 
+resume the call
+If will handle the states for the caller and resume the call
+******************************************************************/
 ExchangeResume() = resumeToExchange?from ->
 			(
 				[incomingSock[from]!=emptySock&&outgoingSock[incomingSock[from]]==from] resume.from{state[incomingSock[from]]=1} -> ExchangeResume()
 				[][!(incomingSock[from]!=emptySock&&outgoingSock[incomingSock[from]]==from)] Error()
 			);
+
+/******************************************************************
+System function
+Used to start the entire system
+******************************************************************/
 System() = Exchange() || Subscribers();
 
+
+/******************************************************************
+Error function
+Used to show that the system will never enter an error state
+******************************************************************/
 Error() = error -> Stop;
 
 #assert System deadlockfree;
 #assert System nonterminating;
+
+/******************************************************************
+Property 1
+Checks that the system will never enter an invalid state.
+This property should always be valid
+******************************************************************/
 #assert System |= (!error);
-/*********************************
-Property 1 
+
+/******************************************************************
+Property 2
 Checks that people are unable to call themselves.
 This property should be valid
-*********************************/
+******************************************************************/
 #assert System() |= connecting.0.0 -> connectionFail.0.0;
-//Checks that if someone calls a person in a selfcall
+
+/******************************************************************
+Property 3
+Checks that people are unable to call selfcalling people
+This property should be valid
+******************************************************************/
 #assert System() |= connecting.0.0 -> connectionFail.0.0 -> connecting.1.0 -> connectionFail.1.0;
