@@ -42,7 +42,7 @@ Dialing(subId) = ([]targetId:{0..numSubs-1}@Calling(subId, targetId));
 
 Calling(subId, targetId) = connecting.subId.targetId -> toExchange!subId.targetId{state[subId]=1;outgoingSock[subId]=targetId;} -> fromExchange?connected -> 
 						(
-							[connected==0] connectionSucceeded.subId.targetId -> Subscriber(subId)
+							[connected==0] connectionSucceeded.subId.targetId{state[subId]=1} -> Subscriber(subId)
 							[][connected==1&&incomingSock[subId]==emptySock]lineBusy.subId{state[subId]=0;outgoingSock[subId]=emptySock} -> connectionFail.subId.targetId -> Subscriber(subId)
 							[][connected==1&&incomingSock[subId]!=emptySock]inCall.subId{state[subId]=2;outgoingSock[subId]=emptySock} -> Subscriber(subId)
 						);
@@ -77,10 +77,13 @@ ExchangeStall() = stallToExchange?from.to -> ExchangeStall();
 ExchangeResume() = resumeToExchange?from.to -> ExchangeResume();
 System() = Exchange() || Subscribers();
 
-#assert System() deadlockfree;
-#assert System() nonterminating;
+#assert System deadlockfree;
 
-//Checks that people are not able to self call.
+/*********************************
+Property 1 
+Checks that people are unable to call themselves.
+This property should be valid
+*********************************/
 #assert System() |= connecting.0.0 -> connectionFail.0.0;
 //Checks that if someone calls a person in a selfcall
 #assert System() |= connecting.0.0 -> connectionFail.0.0 -> connecting.1.0 -> connectionFail.1.0;
