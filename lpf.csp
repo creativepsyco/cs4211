@@ -78,6 +78,7 @@ ExchangeResume() = resumeToExchange?from.to -> ExchangeResume();
 System() = Exchange() || Subscribers();
 
 #assert System deadlockfree;
+#assert System nonterminating;
 
 /*********************************
 Property 1 
