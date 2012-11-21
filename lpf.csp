@@ -1,46 +1,83 @@
-﻿/*********************************
+﻿/******************************************************************
 Constants
-*********************************/
+******************************************************************/
 #define numSubs			2;
 #define emptySock		-1;
 
-/*********************************
+/******************************************************************
 Outgoing and Incoming Sockets for each subscriber
-*********************************/
+******************************************************************/
 var outgoingSock 	= [emptySock(numSubs)];
 var incomingSock 	= [emptySock(numSubs)];
 
-/*********************************
+/******************************************************************
 State values
 0 : Idling
 1 : Calling
 2 : Answering
 3 : Calling Stalled
 4 : Answering Stalled
-*********************************/
+******************************************************************/
 var state 			= [0(numSubs)];
 
-/*********************************
+/******************************************************************
 The channels for communicating with the exchange
-*********************************/
+******************************************************************/
+/******************************************************************
+Channels that are used to initiate calls
+******************************************************************/
 channel toExchange 			0;
 channel fromExchange 		0;
+
+/******************************************************************
+Channels that are used by the caller to hang up calls
+******************************************************************/
 channel hangUpToExchange 	0;
 channel hangUpFromExchange	0;
+
+/******************************************************************
+Channels that are used by the callee to stall calls or resume 
+stalled calls.
+******************************************************************/
 channel resumeToExchange	0;
 channel stallToExchange		0;
-channel stallFromExchange	0;
 
+/******************************************************************
+Function used to initiate all the subscribers in parallel
+******************************************************************/
 Subscribers() = (||subId:{0..numSubs-1}@Subscriber(subId));
 
+/******************************************************************
+Main subscriber function.
+Used to alternate the subscribers between various states of 
+execution
+Sample paths subscriber can go through
+idling -> calling -> callStall -> calling -> idling 
+idling -> answering -> ansStall -> answering -> idling
+******************************************************************/
 Subscriber(subId) = [state[subId] == 0]	idling.subId -> (Dialing(subId) [] Subscriber(subId))
 					[] [state[subId] == 1] calling.subId -> (HangUp(subId) [] Subscriber(subId))
 					[] [state[subId] == 2] answering.subId -> (Stall(subId) [] Subscriber(subId))
 					[] [state[subId] == 3] callStall.subId -> (HangUp(subId) [] Subscriber(subId))
 					[] [state[subId] == 4] ansStall.subId -> (Resume(subId) [] Subscriber(subId));
-		
+
+/******************************************************************
+Dialing function.
+Used to select a target to call, then send it to the Calling 
+function which will then attempt to make the call
+******************************************************************/	
 Dialing(subId) = ([]targetId:{0..numSubs-1}@Calling(subId, targetId));
 
+/******************************************************************
+Calling function.
+Used to call the target that Dialing selected.
+Exchange will inform if connection succeeds.
+If succeeds will go ahead with the call and call Subscriber 
+function.
+If fail will check if there is someone else calling. If no one else
+is calling reset state to idle. If someone else is calling, accept
+accept the call and reset only outgoingSock
+******************************************************************/
 Calling(subId, targetId) = connecting.subId.targetId -> toExchange!subId.targetId{state[subId]=1;outgoingSock[subId]=targetId;} -> fromExchange?connected -> 
 						(
 							[connected==0] connectionSucceeded.subId.targetId{state[subId]=1} -> Subscriber(subId)
@@ -48,7 +85,7 @@ Calling(subId, targetId) = connecting.subId.targetId -> toExchange!subId.targetI
 							[][connected==1&&incomingSock[subId]!=emptySock]inCall.subId{state[subId]=2;outgoingSock[subId]=emptySock} -> Subscriber(subId)
 						);
 
-HangUp(subId) = hangUp.subId -> hangUpToExchange!subId{state[subId]=0;outgoingSock[subId]=emptySock;} -> Subscriber(subId);
+HangUp(subId) =  hangUpToExchange!subId -> hangUp.subId{state[subId]=0;outgoingSock[subId]=emptySock;} -> Subscriber(subId);
 
 Stall(subId) = stall.subId -> stallToExchange!subId{state[subId]=4;} -> Subscriber(subId);
 
@@ -64,8 +101,8 @@ ExchangeCalling() = toExchange?from.to ->
 
 ExchangeHangUp() = hangUpToExchange?from ->
 			(
-				[incomingSock[outgoingSock[from]]==from] hangingUp.from{state[outgoingSock[from]]=0;incomingSock[outgoingSock[from]]=emptySock} -> ExchangeHangUp()
-				[][incomingSock[outgoingSock[from]]!=from] Error()
+				[outgoingSock[from]!=emptySock&&incomingSock[outgoingSock[from]]==from] hangingUp.from{state[outgoingSock[from]]=0;incomingSock[outgoingSock[from]]=emptySock} -> ExchangeHangUp()
+				[][!(outgoingSock[from]!=emptySock&&incomingSock[outgoingSock[from]]==from)] Error()
 			);
 
 ExchangeStall() = stallToExchange?from ->
