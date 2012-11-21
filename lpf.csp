@@ -197,7 +197,14 @@ This property should be valid
 
 /******************************************************************
 Property 3
-Checks that people are unable to call selfcalling people
+Checks that people cannot call someone who is currently attempting a self-call
 This property should be valid
 ******************************************************************/
 #assert System() |= connecting.0.0 -> connectionFail.0.0 -> connecting.1.0 -> connectionFail.1.0;
+
+/******************************************************************
+Property 4
+Caller will always hang up.
+This property should be valid
+******************************************************************/
+#assert System() |= calling.0 -> [] hangUp.0;
