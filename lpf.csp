@@ -82,3 +82,5 @@ System() = Exchange() || Subscribers();
 
 //Checks that people are not able to self call.
 #assert System() |= connecting.0.0 -> connectionFail.0.0;
+//Checks that if someone calls a person in a selfcall
+#assert System() |= connecting.0.0 -> connectionFail.0.0 -> connecting.1.0 -> connectionFail.1.0;
