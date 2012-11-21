@@ -90,7 +90,7 @@ Hangup function
 Used to model the caller hanging up
 Resets all user properties to origin
 ******************************************************************/
-HangUp(subId) =  hangUpToExchange!subId -> hangUp.subId{state[subId]=0;outgoingSock[subId]=emptySock;} -> Subscriber(subId);
+HangUp(subId) =  hangUpToExchange!subId -> hangUp.subId{state[subId]=0;outgoingSock[subId]=emptySock;incomingSock[subId]=emptySock;} -> Subscriber(subId);
 
 /******************************************************************
 Stall function
