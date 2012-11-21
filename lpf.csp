@@ -34,7 +34,7 @@ Subscribers() = (||subId:{0..numSubs-1}@Subscriber(subId));
 
 Subscriber(subId) = [state[subId] == 0]	idling.subId -> (Dialing(subId) [] Subscriber(subId))
 					[] [state[subId] == 1] calling.subId -> (HangUp(subId) [] Subscriber(subId))
-					[] [state[subId] == 2] answering.subId -> (Subscriber(subId))
+					[] [state[subId] == 2] answering.subId -> (Stall(subId) [] Subscriber(subId))
 					[] [state[subId] == 3] callStall.subId -> (HangUp(subId) [] Subscriber(subId))
 					[] [state[subId] == 4] ansStall.subId -> (Resume(subId) [] Subscriber(subId));
 		
